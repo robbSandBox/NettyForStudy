@@ -150,7 +150,8 @@ public class ByteBufferUtil {
             dump.append(HEXDUMP_ROWPREFIXES[row]);
         } else {
             dump.append(StringUtil.NEWLINE);
-            dump.append(Long.toHexString(rowStartIndex & 0xFFFFFFFFL | 0x100000000L));                                                   dump.setCharAt(dump.length() - 9, '|');
+            dump.append(Long.toHexString(rowStartIndex & 0xFFFFFFFFL | 0x100000000L));
+            dump.setCharAt(dump.length() - 9, '|');
             dump.append('|');
         }
     }
