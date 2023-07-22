@@ -7,6 +7,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class TestFilesWalkFileTree {
     public static void main(String[] args) throws IOException {
+        m2();
+    }
+
+    private static void m2() throws IOException {
         AtomicInteger fileCount = new AtomicInteger();
         Files.walkFileTree(Paths.get("D:\\ApachRepo\\rmrbRepo"), new SimpleFileVisitor<Path>(){
             @Override
