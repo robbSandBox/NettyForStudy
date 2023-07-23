@@ -9,10 +9,12 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import static com.zxn.nettydemo.ByteBufferUtil.debugAll;
 import static com.zxn.nettydemo.ByteBufferUtil.debugRead;
 
 
@@ -35,8 +37,6 @@ public class Server {
 
     private static void accept(Selector selector) throws IOException {
         //使用nio来理解阻塞模式,单线程
-        //0.创建全局接收的ByTeBuffer
-        ByteBuffer buffer = ByteBuffer.allocate(16);
         //1.创建服务器
         ServerSocketChannel ssc = ServerSocketChannel.open();
 
@@ -56,11 +56,11 @@ public class Server {
          * 表名了ssc只关注连接连接事件,读写是sc关注的
          */
         sscKey.interestOps(SelectionKey.OP_ACCEPT);
-        log.info("register key:{}",sscKey);
+        log.info("register key:{}", sscKey);
         //2,绑定端口
         ssc.bind(new InetSocketAddress(8080));
 
-        while (true){
+        while (true) {
             /**
              * 3.select方法是阻塞的,没有事件发生,线程阻塞,有事件发生,线程回复运行
              */
@@ -70,25 +70,48 @@ public class Server {
              * 4.处理事件,内部包含了所有发生的事件
              */
             Iterator<SelectionKey> iterator = selector.selectedKeys().iterator();
-            while (iterator.hasNext()){
+            while (iterator.hasNext()) {
                 SelectionKey key = iterator.next();
-                log.info("key:{}",sscKey);
+                /**
+                 * 处理key的时候,注册上来的sc会加入set集合,当这个key对应的事件发生时,获取到这个事件,同时,还要删除这个key
+                 */
+                iterator.remove();
+                log.info("key:{}", sscKey);
                 /**
                  * 区分事件类型
                  */
-                if(key.isAcceptable()){
+                if (key.isAcceptable()) {
                     ServerSocketChannel channel = (ServerSocketChannel) key.channel();
                     SocketChannel sc = channel.accept();
                     sc.configureBlocking(false);
-                    SelectionKey sckey = sc.register(selector, 0, null);
+                    ByteBuffer buffer = ByteBuffer.allocate(16);
+                    SelectionKey sckey = sc.register(selector, 0, buffer);
                     sckey.interestOps(SelectionKey.OP_READ);
-                    log.info("{}",sc);
-                }
-                else if(key.isReadable()){
-                    SocketChannel sc = (SocketChannel) key.channel();
-                    sc.read(buffer);
-                    buffer.flip();
-                    debugRead(buffer);
+                    log.info("{}", sc);
+                    log.info("scKey{}", sckey);
+                } else if (key.isReadable()) {
+                    try {
+                        SocketChannel sc = (SocketChannel) key.channel();
+                        ByteBuffer buffer = (ByteBuffer) key.attachment();
+                        int read = sc.read(buffer);
+                        if (read == -1) {
+                            key.cancel();
+                        } else {
+                            split(buffer);
+                            if(buffer.position() == buffer.limit()){
+                                ByteBuffer allocate = ByteBuffer.allocate(buffer.capacity() * 2);
+                                buffer.flip();
+                                allocate.put(buffer);
+                                key.attach(allocate);
+                            }
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        /**
+                         * 客户端断开草会导致IO,所以当客户端断开后,应该也将key从selector的selectedKeys里面删除这个key
+                         */
+                        key.cancel();
+                    }
                 }
             }
         }
@@ -117,5 +140,25 @@ public class Server {
 //                }
 //            }
 //        }
+    }
+
+    private static List<ByteBuffer> split(ByteBuffer source) {
+        source.flip();//切换为读
+        List<ByteBuffer> all = new ArrayList<>();
+        for (int i = 0; i < source.limit(); i++) {
+            if (source.get(i) == '\n') {
+                //新建buffer的长度就是遇到换行符的位置 - 当前读取位置
+                int len = i + 1 - source.position();
+                ByteBuffer target = ByteBuffer.allocate(len);
+
+                for (int j = 0; j < len; j++) {
+                    target.put(source.get());
+                }
+                all.add(target);
+                debugAll(target);
+            }
+        }
+        source.compact();//未读取的压缩到最前面
+        return all;
     }
 }

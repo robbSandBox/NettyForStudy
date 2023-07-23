@@ -24,6 +24,10 @@ public class Client {
 //
 //        } while (i <= 10);
 
-        System.out.println("beak");
+//        System.out.println("beak");
+
+//        sc.write(Charset.defaultCharset().encode("hello\nworld\n"));
+        sc.write(Charset.defaultCharset().encode("0123456789abcdef3333\n"));
+        System.in.read();
     }
 }
